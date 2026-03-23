@@ -1,4 +1,4 @@
-# Auth Demo — Project Blueprint
+# Login — Project Blueprint
 
 A minimal, educational single-page application demonstrating how OAuth 2.0 / OpenID Connect login flows work across multiple identity providers. The app shows the buttons, explains the flow, and completes a real redirect with persistent user profiles.
 
@@ -44,28 +44,42 @@ A minimal, educational single-page application demonstrating how OAuth 2.0 / Ope
 
 ## 4. Project Structure
 
+Test files live **colocated** next to their source file, identified by the `.test.ts`
+suffix. Vitest only picks up files matching `**/*.test.ts` so source and test files
+never conflict. Each test file covers only its sibling module — no cross-file tests.
+
 ```
-auth-demo/
+login/
 ├── src/
 │   ├── index.ts              # Hono app entry point
+│   ├── index.test.ts         # Route integration tests (GET /, /me, /logout)
 │   ├── providers/
 │   │   ├── google.ts         # Google OAuth helpers
+│   │   ├── google.test.ts    # Tests: buildAuthUrl, exchangeCode, profile parsing
 │   │   ├── discord.ts        # Discord OAuth helpers
+│   │   ├── discord.test.ts   # Tests: buildAuthUrl, avatar URL construction
 │   │   ├── github.ts         # GitHub OAuth helpers
+│   │   ├── github.test.ts    # Tests: buildAuthUrl, token exchange, email fallback
 │   │   ├── steam.ts          # Steam OpenID helpers
-│   │   └── twitter.ts        # Twitter PKCE helpers
+│   │   ├── steam.test.ts     # Tests: redirect params, steamid64 extraction
+│   │   ├── twitter.ts        # Twitter PKCE helpers
+│   │   └── twitter.test.ts   # Tests: PKCE challenge generation, token exchange
 │   ├── middleware/
-│   │   └── session.ts        # KV-backed state/session helpers
+│   │   ├── session.ts        # KV-backed state/session helpers
+│   │   └── session.test.ts   # Tests: state generation, expiry, cookie parsing
 │   ├── db/
-│   │   └── users.ts          # D1 query helpers (upsert, getBySession, updateProfile)
+│   │   ├── users.ts          # D1 query helpers (upsert, getBySession, updateProfile)
+│   │   └── users.test.ts     # Tests: upsert logic, username conflict, session join
 │   ├── schemas/
-│   │   └── index.ts          # All Zod schemas (provider payloads, request bodies)
+│   │   ├── index.ts          # All Zod schemas (provider payloads, request bodies)
+│   │   └── index.test.ts     # Tests: valid + invalid payloads for every schema
 │   └── ui/
 │       └── index.html        # Static login page + /me profile card
 ├── migrations/
 │   ├── 0001_users.sql
 │   ├── 0002_identities.sql
 │   └── 0003_sessions.sql
+├── vitest.config.ts
 ├── wrangler.jsonc
 ├── package.json
 └── tsconfig.json
@@ -533,13 +547,54 @@ export async function exchangeCode(/* ... */): Promise<GoogleProfile> {
 
 ---
 
-## 15. wrangler.jsonc Skeleton
+
+## 15. Vitest Configuration (`vitest.config.ts`)
+
+```ts
+// =========================================================================
+// vitest.config.ts
+// Test runner configuration. Uses vmForks pool for unit tests so that
+// globals like Request, Response, and crypto are available natively.
+// For tests that need a real D1 binding, swap pool to
+// @cloudflare/vitest-pool-workers and point it at wrangler.jsonc.
+// =========================================================================
+import { defineConfig } from 'vitest/config'
+
+export default defineConfig({
+  test: {
+    // Run each test file in its own isolated worker fork
+    pool: 'vmForks',
+
+    // Only pick up colocated test files — never ui/ or migrations/
+    include: ['src/**/*.test.ts'],
+    exclude: ['src/ui/**'],
+
+    // Show each test name in the output, not just pass/fail counts
+    reporter: 'verbose',
+
+    // Coverage report (run with: vitest --coverage)
+    coverage: {
+      provider: 'v8',
+      include:  ['src/**/*.ts'],
+      exclude:  ['src/**/*.test.ts', 'src/ui/**'],
+    },
+  },
+})
+```
+
+> For tests that need a real D1 instance, use `@cloudflare/vitest-pool-workers`
+> with a local D1 binding via `wrangler.jsonc`. For pure unit tests (schemas,
+> URL builders, string helpers), the default `vmForks` pool is sufficient and faster.
+
+---
+
+## 16. wrangler.jsonc Skeleton
 
 ```jsonc
 {
-  "name": "auth-demo",
+  "name": "login",
   "main": "src/index.ts",
-  "compatibility_date": "2024-01-01",
+"compatibility_date": "2026-03-10",
 
   "kv_namespaces": [
     {
@@ -551,13 +606,13 @@ export async function exchangeCode(/* ... */): Promise<GoogleProfile> {
   "d1_databases": [
     {
       "binding": "DB",
-      "database_name": "auth-demo",
+      "database_name": "login",
       "database_id": "<your-d1-database-id>"
     }
   ],
 
   "vars": {
-    "BASE_URL": "https://auth-demo.<your-subdomain>.workers.dev"
+    "BASE_URL": "https://login.<your-subdomain>.workers.dev"
   }
 
   // Secrets — set with: wrangler secret put <NAME>
@@ -572,7 +627,7 @@ export async function exchangeCode(/* ... */): Promise<GoogleProfile> {
 
 ---
 
-## 16. Key Dependencies
+## 17. Key Dependencies
 
 Zod is **pinned to an exact version** using the `=` prefix. This prevents npm from
 upgrading it automatically — even with `npm update` or Renovate/Dependabot — because
@@ -582,13 +637,15 @@ Any upgrade must be deliberate and reviewed manually.
 ```json
 {
   "dependencies": {
-    "hono":   "^4.7.4",
-    "nanoid": "^5.1.5",
-    "zod":    "=3.24.2"
+    "hono":   "^4.12.9",
+    "nanoid": "^5.1.7",
+    "zod":    "=4.3.6"
   },
   "devDependencies": {
     "typescript": "^5.8.2",
-    "wrangler":   "^3.113.0"
+    "wrangler":   "^4.76.0",
+    "vitest":     "^4.1.1",
+    "@vitest/coverage-v8": "^4.1.1"
   }
 }
 ```
@@ -599,7 +656,7 @@ Any upgrade must be deliberate and reviewed manually.
 
 ---
 
-## 17. Development Phases
+## 18. Development Phases
 
 | Phase | Scope |
 |-------|-------|
@@ -611,8 +668,9 @@ Any upgrade must be deliberate and reviewed manually.
 | **6 — Steam** | OpenID 2.0 redirect + GetPlayerSummaries for avatar |
 | **7 — Twitter** | PKCE flow |
 | **8 — Profile editing** | `PATCH /me` (Zod-validated body) for `display_name` + `username`, inline edit UI |
-| **9 — Polish** | Logout, session expiry cron, error pages, avatar fallback (initials) |
+| **9 — Tests** | Write `.test.ts` for schemas, providers, db helpers, and session middleware |
+| **10 — Polish** | Logout, session expiry cron, error pages, avatar fallback (initials) |
 
 ---
 
-*Generated for: auth-demo · Stack: Cloudflare Workers + Hono + D1 + KV + Zod · Author: Vicente*
+*Generated for: login · Stack: Cloudflare Workers + Hono + D1 + KV + Zod · Author: Vicente*
