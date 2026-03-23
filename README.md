@@ -5,7 +5,6 @@ An educational single-page application demonstrating how OAuth 2.0 / OpenID Conn
 ![Stack](https://img.shields.io/badge/runtime-Cloudflare_Workers-orange?style=flat-square)
 ![Framework](https://img.shields.io/badge/framework-Hono-blueviolet?style=flat-square)
 ![Language](https://img.shields.io/badge/language-TypeScript-blue?style=flat-square)
-![Tests](https://img.shields.io/badge/tests-62_passing-brightgreen?style=flat-square)
 [![CI](https://github.com/vicentefelipechile/login/actions/workflows/main.yml/badge.svg)](https://github.com/vicentefelipechile/login/actions/workflows/main.yml)
 
 ---
